@@ -1328,15 +1328,8 @@
     chatToggle.addEventListener('click', toggleChat);
     chatClose.addEventListener('click', toggleChat);
 
-    // モック返信パターン
-    const botReplies = [
-      'ご質問ありがとうございます！AI導入に関するご相談は、お問い合わせフォームからも承っております。専門スタッフが詳しくご説明いたします。',
-      'NexAIでは、コンサルティング・研修・開発の3つのサービスを提供しています。お客様の課題に合わせた最適なプランをご提案いたします。',
-      '詳しい情報をお伝えするため、担当者からご連絡させていただきます。お手数ですが、お問い合わせフォームにご連絡先をご記入いただけますでしょうか。',
-      'ありがとうございます！その件について、より詳しくお話しできればと思います。無料相談のご予約はいかがでしょうか？',
-    ];
-
-    let replyIndex = 0;
+    // 会話履歴（APIに送信用）
+    const chatHistory = [];
 
     // メッセージの追加
     function addMessage(text, isUser) {
@@ -1362,6 +1355,30 @@
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
+    // タイピングインジケーターの表示
+    function showTypingIndicator() {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'flex gap-2.5 chat-message-enter';
+      wrapper.id = 'typing-indicator';
+      wrapper.innerHTML = `
+        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">N</div>
+        <div class="bg-slate-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+          <div class="flex gap-1.5 items-center h-5">
+            <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:0ms"></span>
+            <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:150ms"></span>
+            <span class="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay:300ms"></span>
+          </div>
+        </div>
+      `;
+      chatMessages.appendChild(wrapper);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      const indicator = document.getElementById('typing-indicator');
+      if (indicator) indicator.remove();
+    }
+
     // HTMLエスケープ（XSS対策）
     function escapeHtml(text) {
       const div = document.createElement('div');
@@ -1369,21 +1386,47 @@
       return div.innerHTML;
     }
 
+    // Claude APIへ送信
+    async function sendToAPI(message) {
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, history: chatHistory }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'APIエラー');
+        return data.reply;
+      } catch (err) {
+        console.error('チャットAPIエラー:', err);
+        return '申し訳ございません。現在応答できません。しばらくしてからお試しください。';
+      }
+    }
+
     // チャット送信処理
-    chatForm.addEventListener('submit', (e) => {
+    chatForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const text = chatInput.value.trim();
       if (!text) return;
 
-      // ユーザーメッセージを表示
+      // ユーザーメッセージを表示・履歴に追加
       addMessage(text, true);
+      chatHistory.push({ role: 'user', content: text });
       chatInput.value = '';
+      chatInput.disabled = true;
 
-      // ボットの返信を少し遅らせて表示
-      setTimeout(() => {
-        addMessage(botReplies[replyIndex % botReplies.length], false);
-        replyIndex++;
-      }, 800);
+      // タイピングインジケーター表示
+      showTypingIndicator();
+
+      // Claude APIから応答を取得
+      const reply = await sendToAPI(text);
+
+      // インジケーター除去・応答を表示
+      removeTypingIndicator();
+      addMessage(reply, false);
+      chatHistory.push({ role: 'assistant', content: reply });
+      chatInput.disabled = false;
+      chatInput.focus();
     });
   </script>
 </body>

@@ -112,17 +112,8 @@ module.exports = async function handler(req, res) {
     res.json({ reply: text });
   } catch (error) {
     console.error('Claude API エラー:', error.message);
-    // デバッグ用：APIキー設定状況とエラー詳細を返す（本番では削除）
-    const hasKey = !!process.env.ANTHROPIC_API_KEY;
-    const keyPrefix = hasKey ? process.env.ANTHROPIC_API_KEY.substring(0, 10) + '...' : 'なし';
     res.status(500).json({
       error: '申し訳ございません。現在応答できません。しばらくしてからお試しください。',
-      debug: {
-        apiKeySet: hasKey,
-        keyPrefix: keyPrefix,
-        errorMessage: error.message,
-        errorStatus: error.status || null,
-      },
     });
   }
 };
